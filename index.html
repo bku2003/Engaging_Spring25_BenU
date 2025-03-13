@@ -1,58 +1,10 @@
-#engaging
-
-// Initialize global variables
-SET array dots to store dot positions
-SET array connections to store connected lines
-SET integer maxDots for total number of dots
-SET boolean isDrawing to track user interaction
-SET integer currentDot to track active dot
-SET float fadeTimer to control fading effect
-SET float growthFactor to control dot size changes
-
-// Setup function to initialize canvas and dots
-FUNCTION setup():
-    SET canvas size
-    FOR i from 0 to maxDots:
-        CREATE random dot positions and store in dots array
-    SET currentDot to 0
-    SET fadeTimer to 0
-
-// Draw function (runs continuously)
-FUNCTION draw():
-    CLEAR background with low opacity (trails effect)
-    
-    // Draw existing dots
-    FOR each dot in dots:
-        IF dot is already connected:
-            CHANGE dot color (indicating activation)
-        ELSE:
-            DRAW dot with base color
-        ANIMATE dot size based on growthFactor
-
-    // Draw lines between connected dots
-    FOR each line in connections:
-        DRAW line with varying thickness/opacity
-
-    // Handle fading effect
-    IF fadeTimer > threshold:
-        GRADUALLY decrease line opacity
-
-// Mouse interaction to connect dots
-FUNCTION mousePressed():
-    IF mouse is near an unconnected dot:
-        ADD dot to connections list
-        SET dot as active
-        INCREMENT currentDot
-        TRIGGER growth animation on dot
-
-// Additional event-driven changes
-FUNCTION randomEvents():
-    IF time passes:
-        ALTER dot positions slightly (subtle jitter)
-        TRIGGER occasional color shifts
-        FADE some older lines for ephemerality
-
-// End condition - Full image revealed
-FUNCTION checkCompletion():
-    IF all dots are connected:
-        TRIGGER final animation (glow, expansion, or dissolve)
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <script src="p5.js"></script>
+      <meta charset="utf-8">
+    </head>
+    <body>
+      <script src="sketch.js"></script>
+    </body>
+    </html>
