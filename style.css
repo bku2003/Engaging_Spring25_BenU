@@ -1,15 +1,18 @@
 html, body {
     margin: 0;
     padding: 0;
+    height: 100vh; /* Full height */
+    width: 100vw;  /* Full width */
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 100vh; /* Full height */
-    width: 100vw;  /* Full width */
-    overflow: hidden;
     background-color: #f0f0f0; /* Optional background */
 }
 
 canvas {
-    display: block; /* Removes extra spacing */
+    display: block;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
 }
