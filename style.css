@@ -3,7 +3,7 @@ html, body {
     padding: 0;
     height: 100vh; /* Full height */
     width: 100vw;  /* Full width */
-    display: flex;
+    display: center;
     justify-content: center;
     align-items: center;
     background-color: #f0f0f0; /* Optional background */
