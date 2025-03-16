@@ -24,6 +24,7 @@ let colorSeed = 10;
 
 function setup() {
   createCanvas(800, 800);
+  cnv.parent(document.body);
   colorPalette = generateColorPalette(colorSeed);
   initializeStreetPitch();
   initializeRioBeach();
