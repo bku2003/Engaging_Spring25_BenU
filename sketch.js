@@ -1,142 +1,232 @@
 // the frameworks of an eventual soccer game ? i guess
-// click canvas to change landscape, use spacebar to drop the ball at the location of ur cursor 
+// click canvas to change landscape, use spacebar to drop the ball at the location of ur cursor, use arrow keys for direction
 
-let currentScene = 0; // 0: Favela, 1: Stadium, 2: Beach
-let sceneNames = ["Favela", "Stadium", "Beach"];
-let favela = [];
-let beachCones = [];
+let currentScene = 0; // 0: StreetPitch, 1: Wembley Mate, 2: Rio Beach
+let sceneNames = ["StreetPitch", "Wembley Mate", "Rio Beach"];
+let StreetPitch = [];
+let RioBeachCones = [];
 let seagulls = [];
-let ballPos;
-let ballVel;
 let sunPosition;
 let clouds = [];
+let ballPos;
+let ballVel;
 let trailPositions = [];
 let trailColors = [];
 let ballHistory = [];
 let ballSize = 125; // Ball size increased by 5x (from 25 to 125)
+let confetti = [];
+let isConfettiActive = false;
+let confettiTimer = 0;
+let confettiDuration = 120; // 2 seconds at 60 FPS
+let colorPalette;
+let colorSeed = 10;
+
 
 function setup() {
   createCanvas(800, 800);
+  colorPalette = generateColorPalette(colorSeed);
+  initializeStreetPitch();
+  initializeRioBeach();
+  initializeBall();
+  initializeSunAndClouds();
+}
 
-  // Initialize favela buildings
-  for (let i = 0; i < 3; i++) {
-    favela.push(new Building(i));
+
+
+// yay fun colors we have here
+function generateColorPalette(seed) {
+  randomSeed(seed);
+  let palette = [];
+  let bias = random() > 0.5 ? "warm" : "cool";
+  
+  for (let i = 0; i < 5; i++) {
+    let r = bias === "warm" ? random(150, 255) : random(0, 200);
+    let g = random(50, 200);
+    let b = bias === "cool" ? random(150, 255) : random(0, 200);
+    
+    palette.push(color(r, g, b));
   }
+  return palette;
+}
 
-  // Initialize beach cones - exactly 4 cones
-  beachCones = [
+
+
+// initialize street pitch array w building class
+function initializeStreetPitch() {
+  for (let i = 0; i < 3; i++) {
+    StreetPitch.push(new Building(i));
+  }
+}
+
+function initializeRioBeach() {
+  RioBeachCones = [
     new Cone(150, 650, 35),
     new Cone(300, 650, 30),
     new Cone(500, 650, 40),
-    new Cone(650, 650, 25)
+    new Cone(650, 650, 25),
   ];
-
-  // Initialize seagulls for beach scene
   for (let i = 0; i < 3; i++) {
-    seagulls.push(new Seagull(random(width), random(200, 300), random(0.5, 1.5)));
+    seagulls.push(
+      new Seagull(random(width), random(200, 300), random(0.5, 1.5))
+    );
   }
+}
 
-  // Initialize ball
-  ballPos = createVector(width / 2, height / 2);
-  ballVel = createVector(random(-2, 2), random(-2, 2));
+function initializeBall() {
+  let startX = width / 2 + random(-20, 20);
+  let startY = height / 2 + random(-10, 10);
+  
+  let speedX = random(-2, 2);
+  let speedY = random(-2, 2);
+  
+  ballPos = createVector(startX, startY);
+  ballVel = createVector(speedX, speedY);
+}
 
-  // Initialize sun position
+function initializeSunAndClouds() {
   sunPosition = createVector(width / 2, height + 50);
-
-  // Initialize clouds
   for (let i = 0; i < 3; i++) {
     clouds.push({
       x: random(width),
       y: random(100, 150),
       size: random(50, 100),
-      speed: random(0.2, 0.5)
+      speed: random(0.2, 0.5),
     });
   }
 }
 
+// draw my stuff man!
 function draw() {
-  // Choose which scene to draw
   switch (currentScene) {
     case 0:
-      drawFavela();
+      drawStreetPitch();
       break;
     case 1:
-      drawStadium();
+      drawWembley();
       break;
     case 2:
-      drawBeach();
+      drawRioBeach();
       break;
   }
-
-  // Update ball position
+  
   updateBall();
+  checkGoalCollision();
+
+  if (isConfettiActive) {
+    updateAndDrawConfetti();
+  }
 }
 
+// change landscape on mouse press
 function mousePressed() {
-  // Change scene on mouse click
   currentScene = (currentScene + 1) % 3;
+  colorSeed = random(100); // Change color palette on scene change
+  colorPalette = generateColorPalette(colorSeed);
 }
 
 function keyPressed() {
-  // Reset ball on spacebar
   if (keyCode === 32) {
-    ballPos = createVector(mouseX, mouseY);
-    ballVel = createVector(random(-3, 3), random(-3, 3));
-    ballHistory = []; // Clear ball history when resetting
+    resetBallPosition(mouseX, mouseY);
+  }
+
+  // have some fun with the arrow keys
+  if (keyCode === LEFT_ARROW) {
+    ballVel.x -= 1;
+  }
+  if (keyCode === RIGHT_ARROW) {
+    ballVel.x += 1;
+  }
+  if (keyCode === UP_ARROW) {
+    ballVel.y -= 1;
+  }
+  if (keyCode === DOWN_ARROW) {
+    ballVel.y += 1;
   }
 }
 
+//--------------------------------------------------------------------------------------------------------------------
+// perplexity AI use here to nail the ball functions - goal is to have the soccer ball move around the screen, bounce off edges, and leave a motion blur train while maintainigna rotating effect. also, this section is responsible for the changing in sizes of the ball according to its proximity to certain edges of the canvas. 
+// central function – calls the three proceeding functions to update + draw ball
 function updateBall() {
-  // Add current position to trail
-  ballHistory.push(createVector(ballPos.x, ballPos.y));
+  updateBallTrail();
+  updateBallPosition();
+  drawBall();
+}
 
-  // Generate a random color for the trail
+// adds the current ball pos to ballHistory + creates random trail colors on ball to give motion effect
+function updateBallTrail() {
+  ballHistory.push(createVector(ballPos.x, ballPos.y));
   trailColors.push(color(random(255), random(255), random(255)));
 
-  // Limit trail length
   if (ballHistory.length > 20) {
     ballHistory.shift();
     trailColors.shift();
   }
+}
 
-  // Update ball position
+// monitors if ball hits edges of cvnas + reverses ball direction upon hitting
+//moves ball velocity to ball position
+function updateBallPosition() {
   ballPos.add(ballVel);
 
-  // Bounce off edges
   if (ballPos.x < ballSize / 2 || ballPos.x > width - ballSize / 2) {
     ballVel.x *= -1;
   }
   if (ballPos.y < ballSize / 2 || ballPos.y > height - ballSize / 2) {
     ballVel.y *= -1;
   }
+}
 
-  // Calculate size factor based on x position
-  let xFactor = 1 - Math.abs((ballPos.x - width / 2) / (width / 2));
-  // Calculate size factor based on y position
-  let yFactor = Math.abs((ballPos.y - height / 2) / (height / 2));
-  // Combine factors, giving more weight to the x factor
-  let sizeFactor = xFactor * 0.7 + yFactor * 0.3;
-
-  // Apply size factor to ball size
+//calculates ball position based on its pos
+function drawBall() {
+  let sizeFactor = calculateSizeFactor(ballPos.x, ballPos.y);
   let currentBallSize = ballSize * (0.5 + sizeFactor * 0.5);
 
-  // Draw trail with random color gradient
+  drawBallTrail(currentBallSize);
+  drawMainBall(currentBallSize);
+  drawBallPattern(currentBallSize);
+  drawBallCenter(currentBallSize);
+}
+
+// calculates how big ball should be based on its location on cavnas
+function calculateSizeFactor(x, y) {
+  let xFactor = 1 - Math.abs((x - width / 2) / (width / 2));
+  let yFactor = Math.abs((y - height / 2) / (height / 2));
+  return xFactor * 0.7 + yFactor * 0.3;
+}
+
+//uses ball history to draw train behind the ball so it gives a motion effect – each layer in the trail is a differing opcaty
+function drawBallTrail(currentBallSize) {
   noStroke();
   for (let i = 0; i < ballHistory.length; i++) {
     let alpha = map(i, 0, ballHistory.length, 30, 180);
-    let size = map(i, 0, ballHistory.length, currentBallSize * 0.5, currentBallSize * 0.9);
+    let size = map(
+      i,
+      0,
+      ballHistory.length,
+      currentBallSize * 0.5,
+      currentBallSize * 0.9
+    );
 
-    let trailColor = color(red(trailColors[i]), green(trailColors[i]), blue(trailColors[i]), alpha);
+    let trailColor = color(
+      red(trailColors[i]),
+      green(trailColors[i]),
+      blue(trailColors[i]),
+      alpha
+    );
     fill(trailColor);
-
     ellipse(ballHistory[i].x, ballHistory[i].y, size, size);
   }
+}
 
-  // Draw main ball
+//draw the main white ball shape
+function drawMainBall(currentBallSize) {
   fill(255);
   ellipse(ballPos.x, ballPos.y, currentBallSize, currentBallSize);
+}
 
-  // Draw ball pattern (simple pattern)
+// draw rotating black circles to give movement effect
+function drawBallPattern(currentBallSize) {
   fill(0);
   push();
   translate(ballPos.x, ballPos.y);
@@ -146,23 +236,30 @@ function updateBall() {
     ellipse(0, currentBallSize / 3, currentBallSize / 5, currentBallSize / 5);
   }
   pop();
+}
 
-  // Add black circle in the very center of the ball
+// draw the central black ball
+function drawBallCenter(currentBallSize) {
   fill(0);
   ellipse(ballPos.x, ballPos.y, currentBallSize / 4, currentBallSize / 4);
 }
 
-// Draw a standardized soccer field with the specified color
+
+//clears trail history + reset positon
+function resetBallPosition(x, y) {
+  ballPos = createVector(x, y);
+  ballVel = createVector(random(-3, 3), random(-3, 3));
+  ballHistory = []; // reset ball
+}
+
+// shared fields on wembley and favela street pitch
 function drawSoccerField(fieldColor, includeCircle) {
-  // Draw field with specified color
   fill(fieldColor);
   rect(0, 470, width, 330);
 
-  // Draw center line
   fill(255);
   rect(width / 2 - 5, 470, 10, 330);
 
-  // Draw center circle if requested
   if (includeCircle) {
     fill(255);
     ellipse(width / 2, 635, 20, 20);
@@ -170,29 +267,14 @@ function drawSoccerField(fieldColor, includeCircle) {
 }
 
 function drawGoals() {
-  // Left goal
-  push();
-  translate(40, 600);
-  scale(0.8, 0.8);
-  fill(255);
-  rect(0, 0, 10, 100);
-  rect(0, 0, 60, 10);
-  rect(60, 0, 10, 100);
-  noFill();
-  stroke(255);
-  strokeWeight(2);
-  beginShape();
-  vertex(0, 0);
-  vertex(60, 0);
-  vertex(60, 100);
-  vertex(0, 100);
-  endShape(CLOSE);
-  pop();
+  drawGoal(40, 600, 0.8); // left golazo
+  drawGoal(760, 600, -0.8); // right golazo
+}
 
-  // Right goal
+function drawGoal(x, y, scaleFactor) {
   push();
-  translate(760, 600);
-  scale(-0.8, 0.8);
+  translate(x, y);
+  scale(scaleFactor, 0.8);
   fill(255);
   rect(0, 0, 10, 100);
   rect(0, 0, 60, 10);
@@ -208,47 +290,47 @@ function drawGoals() {
   endShape(CLOSE);
   pop();
 }
+// End of AI use
+//--------------------------------------------------------------------------------------------------------------------
 
-// ---------- SCENE 0: FAVELA ----------
-function drawFavela() {
-  // Enhanced night sky background with stars
-  background(5, 5, 30); // Darker blue for night sky
+// landscape 0: street pitch
+function drawStreetPitch() {
+  drawStreetPitchBackground();
 
-  // Add stars to the night sky
-  drawStars();
-
-  // Add a soft glow around the buildings to simulate light pollution
-  drawLightGlow();
-
-  // Draw favela buildings
-  for (let building of favela) {
+  for (let building of StreetPitch) {
     building.display();
   }
 
-  // Draw wall - thicker and full width, with blue color
-  fill(0, 0, 150);
-  rect(0, 430, width, 50); // Thicker blue wall at full width
-
-  // Draw the soccer field - grey concrete (with circle)
+  drawStreetPitchWall();
   drawSoccerField(color(100, 100, 100), true);
-
-  // Add goals
   drawGoals();
 }
 
-// New function to draw stars in the night sky
+function drawStreetPitchBackground() {
+  background(colorPalette[0]); // palette
+  drawStars();
+  drawLightGlow();
+}
+
+function drawStreetPitchWall() {
+  for (let i = 0; i < 50; i++) {
+    let alpha = map(i, 0, 50, 255, 100);
+    fill(colorPalette[1], alpha);
+    rect(0, 430 + i, width, 1);
+  }
+}
+
 function drawStars() {
   fill(255, 255, 255, 200);
   noStroke();
   for (let i = 0; i < 100; i++) {
     let starSize = random(1, 3);
     let x = random(width);
-    let y = random(180); // Only draw stars above the buildings
+    let y = random(180);
     ellipse(x, y, starSize, starSize);
   }
 }
 
-// New function to create a light glow effect from the buildings
 function drawLightGlow() {
   noStroke();
   fill(255, 255, 100, 10);
@@ -260,58 +342,55 @@ function drawLightGlow() {
   }
 }
 
-// ---------- SCENE 1: STADIUM ----------
-function drawStadium() {
-  // Sky
-  background(100, 200, 230);
+// landscape 1: Wembley
+function drawWembley() {
+  drawWembleyBackground();
+  drawWembleyRoofs();
+  drawWembleySeating();
+  drawWembleyBase();
+  drawSoccerField(colorPalette[2], true); // palette
+  drawGoals();
+  updateClouds();
+}
 
-  // Draw distant curved stadium roof
+function drawWembleyBackground() {
+  background(colorPalette[3]); // palette
+}
+
+function drawWembleyRoofs() {
   noFill();
   stroke(0);
   strokeWeight(2);
   arc(width / 2, 350, width * 1.2, 500, PI, TWO_PI);
   noStroke();
+}
 
-  // Draw ocean layers with black lines between them
+function drawWembleySeating() {
   fill(0, 0, 100);
   rect(0, 230, width, 80);
-
-  // Add black line between first and second blue section
   fill(0);
   rect(0, 310, width, 2);
-
   fill(0, 0, 120);
-  rect(0, 312, width, 78); // Adjusted y position and height to accommodate the line
-
-  // Add black line between second and third blue section
+  rect(0, 312, width, 78);
   fill(0);
   rect(0, 390, width, 2);
-
   fill(0, 0, 140);
-  rect(0, 392, width, 28); // Adjusted y position and height to accommodate the line
+  rect(0, 392, width, 28);
+}
 
-  // Draw concrete base - REDUCED TO HALF HEIGHT
+function drawWembleyBase() {
   fill(200);
   rect(0, 420, width, 50);
-
-  // Draw the soccer field - green grass (with circle)
-  drawSoccerField(color(0, 150, 0), true);
-
-  // Add goals
-  drawGoals();
-
-  // Draw clouds
-  updateClouds();
 }
 
 function updateClouds() {
   fill(255);
   for (let cloud of clouds) {
-    ellipse(cloud.x, cloud.y, cloud.size, cloud.size * 0.6);
-    ellipse(cloud.x + cloud.size * 0.4, cloud.y - cloud.size * 0.1, cloud.size * 0.8, cloud.size * 0.5);
-    ellipse(cloud.x - cloud.size * 0.4, cloud.y, cloud.size * 0.7, cloud.size * 0.5);
+    let wobble = random(-2, 2); // Slight variation in shape
+    ellipse(cloud.x, cloud.y + wobble, cloud.size, cloud.size * 0.6 + wobble);
+    ellipse(cloud.x + cloud.size * 0.4, cloud.y - cloud.size * 0.1 + wobble, cloud.size * 0.8, cloud.size * 0.5);
+    ellipse(cloud.x - cloud.size * 0.4, cloud.y + wobble, cloud.size * 0.7, cloud.size * 0.5);
 
-    // Move cloud
     cloud.x += cloud.speed;
     if (cloud.x > width + cloud.size) {
       cloud.x = -cloud.size;
@@ -319,40 +398,36 @@ function updateClouds() {
   }
 }
 
-// ---------- SCENE 2: BEACH ----------
-function drawBeach() {
-  // Sky gradient from dark blue to orange
-  drawSkyGradient();
+// landscape 2: rio beach soccer
+function drawRioBeach() {
+  drawRioBeachSky();
+  drawRioBeachOceanAndSand();
 
-  // Draw ocean
-  fill(0, 0, 120);
-  rect(0, 480, width, 70);
-
-  // Draw shallow water
-  fill(100, 200, 230);
-  rect(0, 550, width, 50);
-
-  // Draw sand
-  fill(255, 255, 100);
-  rect(0, 600, width, 200);
-
-  // Draw cones - exactly 4 cones
-  for (let cone of beachCones) {
+  for (let cone of RioBeachCones) {
     cone.display();
   }
-
-  // Draw seagulls
   for (let seagull of seagulls) {
     seagull.update();
     seagull.display();
   }
 
-  // Update sun position (rising/setting effect)
   animateSun();
 }
 
+function drawRioBeachSky() {
+  drawSkyGradient();
+}
+
+function drawRioBeachOceanAndSand() {
+  fill(0, 0, 120);
+  rect(0, 480, width, 70);
+  fill(100, 200, 230);
+  rect(0, 550, width, 50);
+  fill(255, 255, 100);
+  rect(0, 600, width, 200);
+}
+
 function drawSkyGradient() {
-  // Create gradient from dark blue to reddish
   for (let y = 0; y < 480; y++) {
     let inter = map(y, 0, 480, 0, 1);
     let c = lerpColor(color(20, 0, 60), color(200, 50, 20), inter);
@@ -363,113 +438,105 @@ function drawSkyGradient() {
 }
 
 function animateSun() {
-  // Make sun rise and set
   sunPosition.y = 650 + sin(frameCount * 0.01) * 50;
 }
 
-// ---------- CLASSES ----------
+// classes
+//using a class to reduce the complexity of the building shapes + windows
 class Building {
-  constructor(position) {
-    // Calculate building position based on the canvas
-    let totalWidth = width; // Buildings span the whole width
-    this.width = totalWidth / 3;
-    this.position = position;
-    this.x = position * this.width;
+  constructor(index) {
+    let sceneWidth = width;
+    let predefinedHeights = [230, 280, 250]; 
 
-    // Different heights for each building
-    let heights = [230, 280, 250]; // Left, middle, right building heights
-    this.height = heights[position];
-    this.y = 430 - this.height; // Calculate y position based on height
+    this.width = sceneWidth / 3;
+    this.index = index;
+    this.x = index * this.width;
+    this.height = predefinedHeights[index];
+    this.y = 430 - this.height;
 
-    // Building colors based on image (dark red, green, dark blue)
-    let colors = [
-      color(150, 40, 40),   // Dark red for first building
-      color(40, 100, 50),   // Green for second building
-      color(30, 60, 100)    // Dark blue for third building
+    let buildingColors = [
+      colorPalette[0],
+      colorPalette[1],
+      colorPalette[2],
     ];
-    this.color = colors[position];
+    this.color = buildingColors[index];
 
     this.windows = [];
+    this.createWindows();
+  }
 
-    // Create four windows for each building in a 2x2 grid
-    // Windows are now more centralized and closer together
+  createWindows() {
     let windowSize = 60;
-    let windowSpacing = 35; // Reduced spacing between windows
-
-    // Calculate the center of the building
+    let windowSpacing = 35;
     let centerX = this.x + this.width / 2;
     let centerY = this.y + this.height / 2;
-
-    // Total width and height of the window group
-    let totalWindowWidth = (2 * windowSize) + windowSpacing;
-    let totalWindowHeight = (2 * windowSize) + windowSpacing;
-
-    // Top-left corner of the window group
+    let totalWindowWidth = 2 * windowSize + windowSpacing;
+    let totalWindowHeight = 2 * windowSize + windowSpacing;
     let startX = centerX - totalWindowWidth / 2;
     let startY = centerY - totalWindowHeight / 2;
 
-    // Create 2x2 grid of windows
     for (let row = 0; row < 2; row++) {
       for (let col = 0; col < 2; col++) {
         this.windows.push({
           x: startX + col * (windowSize + windowSpacing),
           y: startY + row * (windowSize + windowSpacing),
-          size: windowSize
+          size: windowSize,
         });
       }
     }
   }
 
   display() {
-    // Draw building
     fill(this.color);
     rect(this.x, this.y, this.width, this.height);
 
-    // Draw windows
-    fill(255, 255, 100); // Yellow windows
+    fill(255, 255, 100);
     for (let window of this.windows) {
       rect(window.x, window.y, window.size, window.size);
     }
   }
 }
 
+//using a class to easily maintain the soccer cones on the beach landscape
 class Cone {
   constructor(x, y, size) {
     this.x = x;
     this.y = y;
     this.size = size;
-    this.color = color(255, 100, 0);
+    this.color = colorPalette[4]; //palette
   }
 
   display() {
     fill(this.color);
     triangle(
-      this.x, this.y - this.size,
-      this.x - this.size / 2, this.y,
-      this.x + this.size / 2, this.y
+      this.x,
+      this.y - this.size,
+      this.x - this.size / 2,
+      this.y,
+      this.x + this.size / 2,
+      this.y
     );
   }
 }
 
+// using a class to have moving seagull elements in my graphic
 class Seagull {
   constructor(x, y, speed) {
     this.position = createVector(x, y);
     this.velocity = createVector(speed, 0);
     this.size = random(15, 25);
     this.wingOffset = 0;
+    this.bodyColor = colorPalette[1]; //palette
   }
 
   update() {
-    // Move seagull
     this.position.add(this.velocity);
 
-    // Wrap around screen
     if (this.position.x > width + this.size) {
       this.position.x = -this.size;
       this.position.y = random(100, 300);
     }
 
-    // Flap wings
     this.wingOffset = sin(frameCount * 0.2) * 10;
   }
 
@@ -477,16 +544,134 @@ class Seagull {
     push();
     translate(this.position.x, this.position.y);
 
-    // Draw wings
     stroke(0);
     strokeWeight(1);
     line(0, 0, -this.size, this.wingOffset);
     line(0, 0, this.size, this.wingOffset);
 
-    // Draw body
-    fill(255);
+    fill(this.bodyColor); //palette
     noStroke();
     ellipse(0, 0, this.size * 0.8, this.size * 0.4);
     pop();
   }
+}
+
+// confeffit function (for when a user crosses the goal line upon collison)
+function checkGoalCollision() {
+  if (isConfettiActive) return;
+
+  let currentBallRadius = calculateBallRadius(ballPos.x, ballPos.y);
+
+  // left goal boundaries
+  let leftGoalX = 40;
+  let leftGoalY = 600;
+  let leftGoalWidth = 48;
+  let leftGoalHeight = 80;
+
+  // right goal boundaries
+  let rightGoalX = 760 - 48;
+  let rightGoalY = 600;
+  let rightGoalWidth = 48;
+  let rightGoalHeight = 80;
+
+  if (
+    circleRectCollision(
+      ballPos.x,
+      ballPos.y,
+      currentBallRadius,
+      leftGoalX,
+      leftGoalY,
+      leftGoalWidth,
+      leftGoalHeight
+    )
+  ) {
+    handleGoalCollision(ballPos.x, ballPos.y);
+  } else if (
+    circleRectCollision(
+      ballPos.x,
+      ballPos.y,
+      currentBallRadius,
+      rightGoalX,
+      rightGoalY,
+      rightGoalWidth,
+      rightGoalHeight
+    )
+  ) {
+    handleGoalCollision(ballPos.x, ballPos.y);
+  }
+}
+
+function calculateBallRadius(x, y) {
+  let sizeFactor = calculateSizeFactor(x, y);
+  return (ballSize * (0.5 + sizeFactor * 0.5)) / 2;
+}
+
+function handleGoalCollision(x, y) {
+  createConfettiFun(x, y);
+  changeScene();
+}
+
+function changeScene() {
+  currentScene = (currentScene + 1) % 3;
+  resetBallPosition(width / 2, height / 2);
+}
+
+function circleRectCollision(circleX, circleY, radius, rectX, rectY, rectW, rectH) {
+  let closestX = constrain(circleX, rectX, rectX + rectW);
+  let closestY = constrain(circleY, rectY, rectY + rectH);
+  let distanceX = circleX - closestX;
+  let distanceY = circleY - closestY;
+
+  let distanceSquared = distanceX * distanceX + distanceY * distanceY;
+  return distanceSquared < radius * radius;
+}
+
+function createConfettiFun(x, y) {
+  confetti = [];
+  isConfettiActive = true;
+  confettiTimer = confettiDuration;
+
+  for (let i = 0; i < 100; i++) {
+    confetti.push({
+      x: x,
+      y: y,
+      size: random(5, 10),
+      color: color(random(255), random(255), random(255)),
+      vx: random(-5, 5),
+      vy: random(-10, -2),
+      gravity: random(0.1, 0.3),
+      rotation: random(TWO_PI),
+      rotationSpeed: random(-0.1, 0.1),
+    });
+  }
+}
+
+function updateAndDrawConfetti() {
+  confettiTimer--;
+  if (confettiTimer <= 0) {
+    isConfettiActive = false;
+    return;
+  }
+
+  for (let particle of confetti) {
+    updateConfettiParticle(particle);
+    drawConfettiParticle(particle);
+  }
+}
+
+function updateConfettiParticle(p) {
+  p.x += p.vx;
+  p.y += p.vy;
+  p.vy += p.gravity;
+  p.rotation += p.rotationSpeed;
+}
+
+function drawConfettiParticle(p) {
+  push();
+  translate(p.x, p.y);
+  rotate(p.rotation);
+  fill(p.color);
+  noStroke();
+  ellipse(0, 0, p.size, p.size);
+  pop();
 }
