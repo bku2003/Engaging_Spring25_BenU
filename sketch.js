@@ -13,11 +13,11 @@ let ballVel;
 let trailPositions = [];
 let trailColors = [];
 let ballHistory = [];
-let ballSize = 125; // Ball size increased by 5x (from 25 to 125)
+let ballSize = 125;
 let confetti = [];
 let isConfettiActive = false;
 let confettiTimer = 0;
-let confettiDuration = 120; // 2 seconds at 60 FPS
+let confettiDuration = 120;
 let colorPalette;
 let colorSeed = 10;
 
@@ -120,7 +120,7 @@ function draw() {
 // change landscape on mouse press
 function mousePressed() {
   currentScene = (currentScene + 1) % 3;
-  colorSeed = random(100); // Change color palette on scene change
+  colorSeed = random(100); // change palette for each scene :)
   colorPalette = generateColorPalette(colorSeed);
 }
 
@@ -307,7 +307,7 @@ function drawStreetPitch() {
 }
 
 function drawStreetPitchBackground() {
-  background(colorPalette[0]); // palette
+  background(colorPalette[0]);
   drawStars();
   drawLightGlow();
 }
@@ -348,13 +348,13 @@ function drawWembley() {
   drawWembleyRoofs();
   drawWembleySeating();
   drawWembleyBase();
-  drawSoccerField(colorPalette[2], true); // palette
+  drawSoccerField(colorPalette[2], true);
   drawGoals();
   updateClouds();
 }
 
 function drawWembleyBackground() {
-  background(colorPalette[3]); // palette
+  background(colorPalette[3]);
 }
 
 function drawWembleyRoofs() {
