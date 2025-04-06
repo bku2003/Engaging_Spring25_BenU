@@ -20,6 +20,10 @@ let confettiTimer = 0;
 let confettiDuration = 120;
 let colorPalette;
 let colorSeed = 10;
+let bee;
+let isPopping = false;
+let popTimer = 0;
+let popDuration = 30;
 
 
 function setup() {
@@ -29,6 +33,7 @@ function setup() {
   initializeRioBeach();
   initializeBall();
   initializeSunAndClouds();
+  bee = new Bee();
 }
 
 
@@ -111,6 +116,9 @@ function draw() {
   
   updateBall();
   checkGoalCollision();
+  bee.update();
+  bee.display();
+  checkBeeCollision();
 
   if (isConfettiActive) {
     updateAndDrawConfetti();
@@ -179,6 +187,10 @@ function updateBallPosition() {
 
 //calculates ball position based on its pos
 function drawBall() {
+  if (isPopping) {
+    drawPopAnimation();
+    return;
+  }
   let sizeFactor = calculateSizeFactor(ballPos.x, ballPos.y);
   let currentBallSize = ballSize * (0.5 + sizeFactor * 0.5);
 
@@ -674,4 +686,80 @@ function drawConfettiParticle(p) {
   noStroke();
   ellipse(0, 0, p.size, p.size);
   pop();
+}
+
+function checkBeeCollision() {
+  let radius = calculateBallRadius(ballPos.x, ballPos.y);
+  if (bee.hitsBall(ballPos.x, ballPos.y, radius)) {
+    // POP the ball but likr reeeeally pop it
+    isPopping = true;
+    popTimer = popDuration;
+    isConfettiActive = false;
+    confetti = [];
+  }
+}
+
+
+class Bee {
+  constructor() {
+    this.position = createVector(random(width), random(height));
+    this.velocity = p5.Vector.random2D().mult(4);
+    this.size = 40;
+  }
+
+  update() {
+    this.position.add(this.velocity);
+
+    // rando motion
+    if (random() < 0.05) this.velocity = p5.Vector.random2D().mult(4);
+
+    // bounce bounc3 bounce!
+    if (this.position.x < 0 || this.position.x > width) this.velocity.x *= -1;
+    if (this.position.y < 0 || this.position.y > height) this.velocity.y *= -1;
+  }
+
+  display() {
+    push();
+    translate(this.position.x, this.position.y);
+
+    // Bee body
+    fill(255, 200, 0);
+    ellipse(0, 0, this.size, this.size * 0.6);
+    
+    // Stripes
+    stroke(0);
+    line(-10, -10, -10, 10);
+    line(0, -12, 0, 12);
+    line(10, -10, 10, 10);
+    
+    // Wings
+    noFill();
+    stroke(200);
+    ellipse(-10, -15, 15, 20);
+    ellipse(10, -15, 15, 20);
+    
+    // Stinger
+    fill(0);
+    triangle(this.size / 2, 0, this.size / 2 + 10, -5, this.size / 2 + 10, 5);
+    
+    pop();
+  }
+
+  hitsBall(ballX, ballY, ballRadius) {
+    let d = dist(ballX, ballY, this.position.x + this.size / 2 + 5, this.position.y);
+    return d < ballRadius;
+  }
+}
+
+
+function drawPopAnimation() {
+  popTimer--;
+  if (popTimer <= 0) {
+    isPopping = false;
+    resetBallPosition(width / 2, height / 2);
+  }
+
+  let pulseSize = ballSize + random(-10, 10);
+  fill(255, 0, 0, 180);
+  ellipse(ballPos.x, ballPos.y, pulseSize, pulseSize);
 }
